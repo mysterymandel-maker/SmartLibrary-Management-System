@@ -1,0 +1,214 @@
+# Smart Library System - Project Rationale & Architecture
+
+## PROJECT RATIONALE
+
+### Purpose
+The Smart Library System is a desktop application designed to modernize library management by providing:
+- Efficient book catalog management
+- Automated loan tracking with business rule enforcement
+- Role-based access control for librarians and members
+- Community features through book clubs
+- Real-time statistics and reporting
+
+### Technology Choices
+
+**PostgreSQL Database**
+- Robust relational database for data integrity
+- ACID compliance ensures loan transactions are reliable
+- Scalable for growing library collections
+- Industry-standard for production applications
+
+**Python Backend (psycopg2)**
+- Direct database access without ORM overhead
+- Full control over SQL queries for optimization
+- Simple connection pooling for performance
+- Easy to understand and maintain
+
+**PyQt5 GUI**
+- Native desktop application (no browser required)
+- Rich widget library for complex interfaces
+- Cross-platform compatibility (Windows, Mac, Linux)
+- Professional appearance with minimal code
+
+### Architecture Pattern: Three-Layer Architecture
+
+The project follows a clean separation of concerns:
+
+1. **Data Layer (DAOs)** - Database operations only
+2. **Business Layer (Services)** - Rules and validation
+3. **Presentation Layer (UI)** - User interface
+
+This separation ensures:
+- Code reusability
+- Easy testing
+- Simple maintenance
+- Clear responsibilities
+
+
+## CODE ORGANIZATION & CONNECTIONS
+
+### Directory Structure
+```
+library/
+├── database/           # Database setup and configuration
+│   ├── db_connection.py    # Connection pool management
+│   ├── schema.sql          # Table definitions
+│   ├── init_db.py          # Database initialization
+│   └── seed_data.py        # Sample data population
+│
+├── daos/              # Data Access Objects (Database operations)
+│   ├── base_dao.py         # Base class with query execution
+│   ├── user_dao.py         # User CRUD operations
+│   ├── book_dao.py         # Book CRUD operations
+│   ├── loan_dao.py         # Loan CRUD operations
+│   └── club_dao.py         # Book club CRUD operations
+│
+├── services/          # Business Logic Layer
+│   ├── auth_service.py     # Login, registration, password hashing
+│   ├── library_service.py  # Borrowing rules, loan limits, due dates
+│   └── club_service.py     # Club creation, membership
+│
+├── ui/                # User Interface (PyQt5 widgets)
+│   ├── login_dialog.py     # Login window
+│   ├── main_window.py      # Main application shell
+│   ├── dashboard_widget.py # Librarian dashboard
+│   ├── book_management.py  # Book CRUD interface
+│   ├── catalog_widget.py   # Book browsing and borrowing
+│   ├── loans_widget.py     # Loan management
+│   └── club_widget.py      # Book club interface
+│
+├── main.py            # Application entry point
+└── requirements.txt   # Python dependencies
+```
+
+### How Components Connect
+
+#### 1. Application Startup Flow
+```
+main.py
+  └─> Initializes database (init_db.py)
+  └─> Shows LoginDialog (ui/login_dialog.py)
+       └─> Uses AuthService (services/auth_service.py)
+            └─> Calls UserDAO (daos/user_dao.py)
+                 └─> Executes SQL via BaseDAO (daos/base_dao.py)
+                      └─> Uses connection pool (database/db_connection.py)
+```
+
+#### 2. Data Flow Example: Borrowing a Book
+```
+User clicks "Borrow" button
+  └─> CatalogWidget (ui/catalog_widget.py)
+       └─> Calls LibraryService.borrow_book()
+            └─> Checks loan count via LoanDAO.get_active_loan_count()
+            └─> Checks book availability via BookDAO.get_book_by_id()
+            └─> Creates loan via LoanDAO.create_loan()
+            └─> Updates book copies via BookDAO.update_copies()
+                 └─> All execute SQL through BaseDAO
+                      └─> Uses PostgreSQL connection pool
+```
+
+#### 3. Layer Responsibilities
+
+**DATABASE LAYER** (database/)
+- Manages PostgreSQL connection pool
+- Provides get_connection() and release_connection()
+- Defines table schema
+- No business logic
+
+**DAO LAYER** (daos/)
+- Inherits from BaseDAO
+- Executes SQL queries (SELECT, INSERT, UPDATE, DELETE)
+- Returns raw data (tuples, lists)
+- No validation or business rules
+- Example: BookDAO.get_all_books() returns list of tuples
+
+**SERVICE LAYER** (services/)
+- Uses DAOs to access data
+- Enforces business rules:
+  * Max 3 loans per member
+  * 7-day loan period
+  * Password hashing
+- Validates input
+- Coordinates multiple DAO calls
+- Returns success/failure messages
+
+**UI LAYER** (ui/)
+- Uses Services (never DAOs directly)
+- Displays data in tables, lists, forms
+- Handles user input
+- Shows error messages
+- Updates on user actions
+
+### Key Design Decisions
+
+**1. Connection Pooling**
+- Single pool created at startup (db_connection.py)
+- DAOs get/release connections for each query
+- Prevents connection exhaustion
+
+**2. BaseDAO Pattern**
+- All DAOs inherit from BaseDAO
+- Centralizes error handling
+- Provides execute_query() method
+- Automatic connection management
+
+**3. Role-Based UI**
+- MainWindow.setup_tabs() checks user role
+- Dynamically loads different widgets
+- Librarian sees: Dashboard, Manage Books, Manage Clubs
+- Member sees: Catalog, My Loans, Book Clubs
+
+**4. Business Rules in Services**
+- LibraryService enforces MAX_LOANS = 3
+- LibraryService calculates due_date = today + 7 days
+- AuthService handles password hashing
+- UI never implements rules directly
+
+### Data Flow Summary
+
+```
+PostgreSQL Database
+       ↑
+       | (SQL queries)
+       |
+   BaseDAO (connection management)
+       ↑
+       | (inherits)
+       |
+Specific DAOs (user_dao, book_dao, loan_dao, club_dao)
+       ↑
+       | (uses)
+       |
+Services (auth_service, library_service, club_service)
+       ↑
+       | (uses)
+       |
+UI Widgets (login_dialog, catalog_widget, etc.)
+       ↑
+       | (user interaction)
+       |
+    User
+```
+
+### Why This Architecture?
+
+**Maintainability**
+- Change database? Only update DAOs
+- Change business rules? Only update Services
+- Change UI? Only update widgets
+
+**Testability**
+- Test DAOs with test database
+- Test Services with mock DAOs
+- Test UI with mock Services
+
+**Scalability**
+- Add new features by adding new DAOs/Services
+- Extend existing features without breaking others
+- Clear boundaries prevent spaghetti code
+
+**Security**
+- Services validate all input
+- DAOs use parameterized queries (SQL injection protection)
+- Password hashing in AuthService
+- Role checks in UI layer
