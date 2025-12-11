@@ -1,3 +1,4 @@
+# EMMANUEL KOROMA /905004761/BSEM1101 /GROUP J
 # SmartLibrary-Management-System
 A desktop based Smart Library Management System built with Python (OOP), PyQt5, and PostgreSQL. Includes book management, loans, members, book clubs, and role based access.
 # SmartLibrary – Limkokwing University Central Library System
