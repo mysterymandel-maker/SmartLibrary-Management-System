@@ -1,0 +1,4 @@
+import Turtle
+import colorsys
+speed(0)
+bgcolor()
